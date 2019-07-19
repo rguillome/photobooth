@@ -6,10 +6,10 @@ import time
 class PiCapture(object):
     def __init__(self):
         self.camera = PiCamera()
-        self.camera.resolution = (640,480)
+        self.camera.resolution = (2592,1944)
         self.camera.framerate = 32
         
-        self.rawCapture = PiRGBArray(self.camera, size=(640,480))
+        self.rawCapture = PiRGBArray(self.camera, size=(2592,1944))
     
         time.sleep(0.1)
 

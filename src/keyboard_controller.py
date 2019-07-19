@@ -13,10 +13,14 @@ class KeyboardController(InputController):
 
         if key % 256 == ord('s'):
             action = InputController.ACTION_SHOOT
+        elif key % 256 == ord('n'):
+            action = InputController.ACTION_NEXT
         elif key % 256 == ord('b'):
-            action = InputController.ACTION_LAST
+            action = InputController.ACTION_PREVIOUS
         elif key % 256 == ord('p'):
             action = InputController.ACTION_PRINT
+        elif key % 256 == ord('m'):
+            action = InputController.ACTION_MODE
         elif key == 27:
             action = InputController.ACTION_EXIT
 

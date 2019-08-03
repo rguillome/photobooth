@@ -2,6 +2,7 @@ import cv2
 
 class VideoCapture(object):
     def __init__(self, video_path):
+        print("Initialize Video Capture")
         self.camera = cv2.VideoCapture(video_path)
 
     def next_img(self):

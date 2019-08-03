@@ -1,8 +1,10 @@
 from input_controller import InputController
-from main import CV2_VIEWNAME
+from main import CV2_VIEWNAME, CV2_WINDOW_WIDTH, CV2_WINDOW_HEIGHT
 import time
 import cv2
 import numpy as np
+import os
+from threading import Thread
 
 MODE_SHOOT = 0
 MODE_PLAY = 1
@@ -11,115 +13,197 @@ MAX_MODE = 1
 
 PAUSE_LENGTH = 10
 
+CAMERA_WIDTH = 1920
+CAMERA_HEIGHT = 1080
+
+########################################
+### Classes
+########################################
+class ShootRun(Thread):
+
+    """This Thread will run a function with args ."""
+
+    def __init__(self, camera):
+        Thread.__init__(self)
+        self.camera = camera
+
+    def run(self):
+        """Code to execute while thread is running : 
+            - each second, print the descending counter
+            - at the end, take a picture
+        """
+        print("Start counter")
+        for count in range(9,-1,-1) :
+            self.camera.counter = count
+            time.sleep(1)
+        
+        self.camera.counter = None
+
+        self.camera.shoot_action()
+
 class Camera():
     
-    def __init__(self, store):
+    def __init__(self, store, video_stream, input_controller):
         self.store = store
-        self.img = None
         self.current_mode = MODE_SHOOT
+        self.video_stream = video_stream
+        self.input_controller = input_controller
+        self.camera_resolution_x,self.camera_resolution_y = video_stream.get_img_size()
+        self.counter = None
 
-    def process_loop_img(self, video_stream, input_controller):
-        pause = False
-        start_pause = None
+    def launch(self):
 
-        for img in video_stream.next_img():
+        # Loop over actions :s
+         while True :
+            action = self.input_controller.wait_for_action(10)
 
-            action = input_controller.wait_for_action(10)
-            
             if action==InputController.ACTION_EXIT:
-                break
-            elif action is not None:
-                pause = self.process_action(action, img)
+                os._exit(1)
+            else:                
+                if self.current_mode == MODE_SHOOT:
+                    self.process_shoot(action)
+                elif self.current_mode == MODE_PLAY:
+                    self.process_play(action)
 
-            if not pause:
-                cv2.imshow(CV2_VIEWNAME, img)  
-                video_stream.clean_iteration()
-            elif self.current_mode == MODE_SHOOT:
-                if start_pause is None :
-                    start_pause = time.time()
-                if time.time() == start + PAUSE_LENGTH*1000:
-                    start_pause = None
-                    start_pause = False
+    def print_mode(self, img):
+
+        mode = None
+
+        if self.current_mode == MODE_PLAY:
+            mode="Lecture"
+        elif self.current_mode == MODE_SHOOT:
+            mode="Photo"
+
+        cv2.rectangle(img, (self.camera_resolution_x-130,10), (self.camera_resolution_x-10,50), (255,255,255), thickness=-1, lineType=8, shift=0) 
+        cv2.putText(img,mode,(self.camera_resolution_x-129,45), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)  
+
+    def process_play(self, action):
+
+        if action is not None:
+            self.process_action_play(action)
+
+    def process_shoot(self, action):
+
+        img = next(self.video_stream.next_img())
         
+        if self.counter is not None:
 
-    def process_action(self, action, img):
+            if self.counter > 0 :
+                cv2.rectangle(img, (int(self.camera_resolution_x/2)-30,self.camera_resolution_y-50), 
+                    (int(self.camera_resolution_x/2)+30,self.camera_resolution_y-10), (255,255,255), 
+                    thickness=-1, lineType=8, shift=0) 
+                cv2.putText(img,str(self.counter),(int(self.camera_resolution_x/2)-17,
+                    self.camera_resolution_y-18), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)
+            elif self.counter == 0 :
+                cv2.rectangle(img, (int(self.camera_resolution_x/2)-50,self.camera_resolution_y-50), 
+                    (int(self.camera_resolution_x/2)+120,self.camera_resolution_y-10), (255,255,255), 
+                    thickness=-1, lineType=8, shift=0) 
+                cv2.putText(img,"Ouistiti !",(int(self.camera_resolution_x/2)-28,
+                    self.camera_resolution_y-18), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)
 
-        pause = None
+        self.print_mode(img)
+        cv2.imshow(CV2_VIEWNAME, img)  
+        
+        self.video_stream.clean_iteration()
+
+        if action is not None:
+            self.process_action_shoot(action)   
+
+    def process_action_shoot(self, action):
+        if action == InputController.ACTION_SHOOT :
+            thread_shoot = ShootRun(self)
+            thread_shoot.start()
+        elif action == InputController.ACTION_MODE :
+            self.__change_mode()
+        else :
+            self.__show_msg('Action non autorisee dans ce mode')
+
+    def process_action_play(self, action):
 
         if action == InputController.ACTION_SHOOT :
-            pause =  self.__shoot_action(img)
+            self.__change_mode()
+            thread_shoot = ShootRun(self)
+            thread_shoot.start()
         elif action == InputController.ACTION_NEXT :
-            pause = self.__next_action()
+            self.__next_action()
         elif action == InputController.ACTION_PREVIOUS :
-            pause = self.__previous_action()
+            self.__previous_action()
         elif action == InputController.ACTION_PRINT :
-            pause = self.__print_action()
+            self.__print_action()
         elif action == InputController.ACTION_MODE :
-            pause = self.__change_mode()
-
-        return pause
-
+            self.__change_mode()
+        else :
+            self.__show_msg('Action non autorisee dans ce mode')
+            
+        
     def __change_mode(self):
         self.current_mode += 1
 
         if self.current_mode > MAX_MODE:
-           self.current_mode = MIN_MODE 
+           self.current_mode = MIN_MODE
+        
+        if self.current_mode == MODE_PLAY:
+            self.last_action()
+        
 
     def __next_action(self):
       
         # Here we show the next picture 
-        img = self.store.get_next_img()
+        img, index = self.store.get_next_img()
 
-        if img is None:
-            # Simple message : there is no history yet
-            img = np.zeros((1024,1280,3), np.uint8)
-            cv2.rectangle(img, (0,560), (1280,660), (255,255,255), thickness=-1, lineType=8, shift=0) 
-            cv2.putText(img,'Pas encore d\'historique',(30,620), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,0),2,cv2.LINE_AA)
-            cv2.imshow(CV2_VIEWNAME, img)
-        else :
-            #Show and ask for printing ?
-            #cv2.rectangle(img, (0,560), (1280,660), (255,255,255), thickness=-1, lineType=8, shift=0) 
-            #cv2.putText(img,'Voulez-vous lancer l\'impression ?',(30,620), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,0),2,cv2.LINE_AA)
-            cv2.imshow(CV2_VIEWNAME, img)
-
-        return True
+        self.__show_img(img, index)
 
     def __previous_action(self):
 
         # Here we show the previous picture 
-        img = self.store.get_previous_img()
+        img, index = self.store.get_previous_img()
+
+        self.__show_img(img, index)
+
+    def last_action(self):
+
+        # Here we show the previous picture 
+        img, index = self.store.get_last_img()
+
+        self.__show_img(img, index)
+
+    def __show_img(self, img, index):
+
+        self.print_mode(img)
 
         if img is None:
-            # Simple message : there is no history yet
-            img = np.zeros((1024,1280,3), np.uint8)
-            cv2.rectangle(img, (0,560), (1280,660), (255,255,255), thickness=-1, lineType=8, shift=0) 
-            cv2.putText(img,'Pas encore d\'historique',(30,620), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,0),2,cv2.LINE_AA)
-            cv2.imshow(CV2_VIEWNAME, img)
+            self.__show_msg('Pas encore d\'historique')
         else :
-            #Show and ask for printing ?
-            #cv2.rectangle(img, (0,560), (1280,660), (255,255,255), thickness=-1, lineType=8, shift=0) 
-            #cv2.putText(img,'Voulez-vous lancer l\'impression ?',(30,620), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,0),2,cv2.LINE_AA)
+            cv2.rectangle(img, (int(self.camera_resolution_x/2)-50,self.camera_resolution_y-50), 
+                (int(self.camera_resolution_x/2)+120,self.camera_resolution_y-10), (255,255,255), 
+                thickness=-1, lineType=8, shift=0) 
+            cv2.putText(img,"Photo "+str(index),(int(self.camera_resolution_x/2)-28,
+                self.camera_resolution_y-18), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)
             cv2.imshow(CV2_VIEWNAME, img)
 
-        return True
+    def __show_msg(self, msg):
+        img = np.zeros((1024,1280,3), np.uint8)
+        cv2.rectangle(img, (0,560), (1280,660), (255,255,255), thickness=-1, lineType=8, shift=0) 
+        cv2.putText(img,msg,(30,620), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,0),2,cv2.LINE_AA)
+        cv2.imshow(CV2_VIEWNAME, img)
 
-    def __shoot_action(self, img):
+
+    def shoot_action(self):
         print("Shoot !")
+
+        img = next(self.video_stream.next_img())
 
         #Store in memory
         self.store.store_img(img)
 
-        #Show and ask for printing ?
-        #cv2.rectangle(img, (0,560), (1280,660), (255,255,255), thickness=-1, lineType=8, shift=0) 
-        #cv2.putText(img,'Voulez-vous lancer l\'impression ?',(30,620), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,0),2,cv2.LINE_AA)
-        cv2.imshow(CV2_VIEWNAME, img)
+        # Passage en mode play
+        # TODO : seulement pour 10/20 secondes ?
+        self.current_mode = MODE_PLAY
+        self.last_action()
         
-        return True
-
 
     def __print_action(self):
         print("Print !")
         #Retrieve from memory
 
         #Print call
-        return False

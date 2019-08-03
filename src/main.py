@@ -17,8 +17,14 @@ PLATFORM_WEBCAM = 'webcam'
 PLATFORM_VIDEO = 'video'
 
 CV2_VIEWNAME = 'PhotoBooth-View'
+CV2_WINDOW_WIDTH = 640
+CV2_WINDOW_HEIGHT = 480
 
-OUTPUT_DEFAULT_PATH = '/tmp/'
+from sys import platform
+if platform == "linux" or platform == "linux2" or platform == "darwin":
+    OUTPUT_DEFAULT_PATH = '/tmp/photobooth/'    
+elif platform == "win32":
+    OUTPUT_DEFAULT_PATH = 'c:\\tmp\\photobooth\\'
 
 def main(argv):
     """
@@ -53,7 +59,7 @@ def main(argv):
         output_path = arg
 
     store = st.Store(output_path)
-    cam = cm.Camera(store)
+    
 
     if source == PLATFORM_RPICAM:
         import picapture as cp
@@ -67,11 +73,11 @@ def main(argv):
         import videocapture as vp
         video_stream = vp.VideoCapture(input_path)
 
-    
     cv2.namedWindow(CV2_VIEWNAME,cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(CV2_VIEWNAME,1024,768)
+    cv2.resizeWindow(CV2_VIEWNAME,CV2_WINDOW_WIDTH,CV2_WINDOW_HEIGHT)
 
-    cam.process_loop_img(video_stream, input_controller)
+    cam = cm.Camera(store, video_stream, input_controller)
+    cam.launch()
 
     cv2.destroyAllWindows()
 

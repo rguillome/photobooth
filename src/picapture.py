@@ -2,25 +2,40 @@ import cv2
 from picamera import PiCamera
 from picamera.array import PiRGBArray
 import time
+import io
+import numpy as np
+#from PIL import Image
 
 class PiCapture(object):
-    def __init__(self):
-        print("Initialize Pi Camera")
-        self.camera = PiCamera()
-        self.camera.resolution = (2592,1944)
-        self.camera.framerate = 32
-        
-        self.rawCapture = PiRGBArray(self.camera, size=(2592,1944))
     
-        time.sleep(0.1)
+    def __init__(self, display_resolution):
+        print("Initialize Pi Camera")
+        self.display_resolution = display_resolution
+        self.camera = PiCamera()
+        self.camera.resolution = (1920,1080)
+        self.camera.framerate = 32
+        self.stream  = io.BytesIO()
+        time.sleep(2)
 
     def next_img(self):
-        for frame in self.camera.capture_continuous(self.rawCapture, format="bgr", use_video_port=True):
-            img = frame.array
-            yield img
 
-   def get_img_size(self):
-        return self.camera.resolution
-    
-    def clean_iteration(self):
-        self.rawCapture.truncate(0)
+        while True:
+   
+            self.camera.capture(self.stream, format='jpeg', resize = self.display_resolution)
+            self.stream.seek(0)
+
+            img = cv2.imdecode(np.fromstring(self.stream.getvalue(), dtype=np.uint8),1)
+
+            self.__clean_iteration()
+            yield img
+            
+    def take_picture(self) :
+        self.camera.capture(self.stream, format='jpeg')
+        self.stream.seek(0)
+        img = cv2.imdecode(np.fromstring(self.stream.getvalue(), dtype=np.uint8),1)
+        self.__clean_iteration()
+        
+        return img
+        
+    def __clean_iteration(self):
+        self.stream.truncate(0)

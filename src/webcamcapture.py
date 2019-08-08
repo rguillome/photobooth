@@ -11,10 +11,8 @@ class WebcamCapture(object):
         while True:
             ret, img = self.camera.read()
             yield img
+    
+    def take_picture() :
+        #TODO
 
-    def get_img_size(self):
-        return (int(self.camera.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.camera.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-
-    def clean_iteration(self):
-        None
 

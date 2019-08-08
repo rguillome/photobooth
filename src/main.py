@@ -36,18 +36,18 @@ def main(argv):
                 -s : the source (rpicam, webcam, video)
                 -i : input path (required if video is selected)
                 -o : output path (required if headless)
-                -d : headless (no feedback)
+                -f : fullscreen
     """
     
     #Default parameters value
     source = PLATFORM_WEBCAM
-    headless = False
     output_path = OUTPUT_DEFAULT_PATH
+    fullscreen = False
   
     try:
-        opts, args = getopt.getopt(argv,"s:v:o",["source=","in_path=","output_path="])
+        opts, args = getopt.getopt(argv,"s:v:o:f",["source=","in_path=","output_path="])
     except getopt.GetoptError:
-        print ('main.py -s <source> -i <input_path> -o <output_path>')
+        print ('main.py -s <source> -i <input_path> -o <output_path> -f')
         sys.exit(2)
 
     for opt, arg in opts:
@@ -57,26 +57,40 @@ def main(argv):
         input_path = arg
       elif opt in ("-i", "--output_path"):
         output_path = arg
+      elif opt in ("-f", "--fullscreen"):
+        fullscreen = True
 
-    store = st.Store(output_path)
+    store = st.Store(output_path)    
     
+    if not fullscreen:
+        cv2.namedWindow(CV2_VIEWNAME,cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(CV2_VIEWNAME,CV2_WINDOW_WIDTH,CV2_WINDOW_HEIGHT)
+        dimension = (CV2_WINDOW_WIDTH,CV2_WINDOW_HEIGHT)
+    else:
+        cv2.namedWindow(CV2_VIEWNAME,cv2.WND_PROP_FULLSCREEN)
+        cv2.setWindowProperty(CV2_VIEWNAME,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+        
+        import Tkinter
+        root = Tkinter.Tk()
+        width = root.winfo_screenwidth()
+        height = root.winfo_screenheight()
+        dimension = (width,height)
 
     if source == PLATFORM_RPICAM:
         import picapture as cp
-        video_stream = cp.PiCapture()
+        video_stream = cp.PiCapture(dimension)
+	import keyboard_controller as ki
+	input_controller = ki.KeyboardController(store)
     elif source == PLATFORM_WEBCAM:
         import webcamcapture as wp
-        video_stream = wp.WebcamCapture()
+        video_stream = wp.WebcamCapture(dimension)
         import keyboard_controller as ki
         input_controller = ki.KeyboardController(store)
     elif source == PLATFORM_VIDEO:
         import videocapture as vp
         video_stream = vp.VideoCapture(input_path)
 
-    cv2.namedWindow(CV2_VIEWNAME,cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(CV2_VIEWNAME,CV2_WINDOW_WIDTH,CV2_WINDOW_HEIGHT)
-
-    cam = cm.Camera(store, video_stream, input_controller)
+    cam = cm.Camera(store, video_stream, input_controller, dimension)
     cam.launch()
 
     cv2.destroyAllWindows()

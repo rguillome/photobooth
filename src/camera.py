@@ -33,23 +33,24 @@ class ShootRun(Thread):
             - at the end, take a picture
         """
         print("Start counter")
-        for count in range(9,-1,-1) :
+        for count in range(1,-1,-1) :
             self.camera.counter = count
             time.sleep(1)
         
         self.camera.counter = None
-
-        self.camera.shoot_action()
+        self.camera.shoot = True
 
 class Camera():
     
-    def __init__(self, store, video_stream, input_controller):
+    def __init__(self, store, video_stream, input_controller, display_resolution):
         self.store = store
         self.current_mode = MODE_SHOOT
         self.video_stream = video_stream
         self.input_controller = input_controller
-        self.camera_resolution_x,self.camera_resolution_y = video_stream.get_img_size()
+        self.camera_resolution_x,self.camera_resolution_y = display_resolution
         self.counter = None
+        self.shoot = False
+        self.display_resolution = display_resolution
 
     def launch(self):
 
@@ -73,9 +74,11 @@ class Camera():
             mode="Lecture"
         elif self.current_mode == MODE_SHOOT:
             mode="Photo"
+            
+        x = self.camera_resolution_x
+        cv2.rectangle(img, (int(x-x*0.25),10), (int(x-x*0.05+x*0.01),50), (255,255,255), thickness=-1, lineType=8, shift=0) 
+        cv2.putText(img,mode,(int(x-x*0.25+x*0.01),45), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)  
 
-        cv2.rectangle(img, (self.camera_resolution_x-130,10), (self.camera_resolution_x-10,50), (255,255,255), thickness=-1, lineType=8, shift=0) 
-        cv2.putText(img,mode,(self.camera_resolution_x-129,45), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)  
 
     def process_play(self, action):
 
@@ -100,11 +103,13 @@ class Camera():
                     thickness=-1, lineType=8, shift=0) 
                 cv2.putText(img,"Ouistiti !",(int(self.camera_resolution_x/2)-28,
                     self.camera_resolution_y-18), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)
-
-        self.print_mode(img)
-        cv2.imshow(CV2_VIEWNAME, img)  
         
-        self.video_stream.clean_iteration()
+        if self.shoot:
+            self.shoot_action()
+            self.shoot = False
+        else:
+            self.print_mode(img)
+            cv2.imshow(CV2_VIEWNAME, img)  
 
         if action is not None:
             self.process_action_shoot(action)   
@@ -168,6 +173,8 @@ class Camera():
         self.__show_img(img, index)
 
     def __show_img(self, img, index):
+        
+        img = cv2.resize(img, (self.camera_resolution_x, self.camera_resolution_y)) 
 
         self.print_mode(img)
 
@@ -182,16 +189,18 @@ class Camera():
             cv2.imshow(CV2_VIEWNAME, img)
 
     def __show_msg(self, msg):
-        img = np.zeros((1024,1280,3), np.uint8)
-        cv2.rectangle(img, (0,560), (1280,660), (255,255,255), thickness=-1, lineType=8, shift=0) 
-        cv2.putText(img,msg,(30,620), cv2.FONT_HERSHEY_SIMPLEX, 2,(0,0,0),2,cv2.LINE_AA)
+        width = self.camera_resolution_x
+        height = self.camera_resolution_y
+        img = np.zeros((height, width,3), np.uint8)
+        cv2.rectangle(img, (0,int(height/2-height/8)), (width,int(height/2+height/8)), (255,255,255), thickness=-1, lineType=8, shift=0) 
+        cv2.putText(img,msg,(int(width*0.01),int(height/2-height/16)), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,0,0),2,cv2.LINE_AA)
         cv2.imshow(CV2_VIEWNAME, img)
 
 
     def shoot_action(self):
         print("Shoot !")
 
-        img = next(self.video_stream.next_img())
+        img = self.video_stream.take_picture()
 
         #Store in memory
         self.store.store_img(img)

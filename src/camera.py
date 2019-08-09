@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import os
 from threading import Thread
+import cups
 
 MODE_SHOOT = 0
 MODE_PLAY = 1
@@ -15,6 +16,9 @@ PAUSE_LENGTH = 10
 
 CAMERA_WIDTH = 1920
 CAMERA_HEIGHT = 1080
+
+#PRINTER_NAME = "Canon_SELPHY_CP1300"
+PRINTER_NAME = "Brother_DCP-L2520DW_series"
 
 ########################################
 ### Classes
@@ -33,7 +37,7 @@ class ShootRun(Thread):
             - at the end, take a picture
         """
         print("Start counter")
-        for count in range(1,-1,-1) :
+        for count in range(9,-1,-1) :
             self.camera.counter = count
             time.sleep(1)
         
@@ -56,9 +60,10 @@ class Camera():
 
         # Loop over actions :s
          while True :
-            action = self.input_controller.wait_for_action(10)
+            action = self.input_controller.wait_for_action(1)
 
             if action==InputController.ACTION_EXIT:
+                self.input_controller.release()
                 os._exit(1)
             else:                
                 if self.current_mode == MODE_SHOOT:
@@ -168,19 +173,19 @@ class Camera():
     def last_action(self):
 
         # Here we show the previous picture 
-        img, index = self.store.get_last_img()
+        img, index, path = self.store.get_last_img()
 
         self.__show_img(img, index)
 
     def __show_img(self, img, index):
         
-        img = cv2.resize(img, (self.camera_resolution_x, self.camera_resolution_y)) 
-
-        self.print_mode(img)
-
         if img is None:
             self.__show_msg('Pas encore d\'historique')
         else :
+            img = cv2.resize(img, (self.camera_resolution_x, self.camera_resolution_y)) 
+
+            self.print_mode(img)
+        
             cv2.rectangle(img, (int(self.camera_resolution_x/2)-50,self.camera_resolution_y-50), 
                 (int(self.camera_resolution_x/2)+120,self.camera_resolution_y-10), (255,255,255), 
                 thickness=-1, lineType=8, shift=0) 
@@ -212,7 +217,20 @@ class Camera():
         
 
     def __print_action(self):
-        print("Print !")
         #Retrieve from memory
-
+        mg, index, path = self.store.get_last_img()
+        
         #Print call
+        conn = cups.Connection()
+        cups.setUser('pi')
+        printers = conn.getPrinters()
+        
+        printer = printers[PRINTER_NAME]
+        
+        if printer:
+            print("Sending printing order to ",PRINTER_NAME," with file ",path)
+            
+            pid = conn.printFile(PRINTER_NAME, path, 'photobooth', {'fit-to-page':'True'})
+            
+            while conn.getJobs().get(pid, None) is not None:
+                time.sleep(1)

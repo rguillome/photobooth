@@ -12,21 +12,21 @@ class PiCapture(object):
         print("Initialize Pi Camera")
         self.display_resolution = display_resolution
         self.camera = PiCamera()
-        self.camera.resolution = (1920,1080)
-        self.camera.framerate = 32
+        self.camera.resolution = (2592,1944)
+        self.camera.framerate = 5
         self.stream  = io.BytesIO()
-        time.sleep(2)
+        time.sleep(0.1)
 
     def next_img(self):
-
-        while True:
+        
+        for frame in self.camera.capture_continuous(self.stream, format='jpeg', resize = self.display_resolution, use_video_port = True):
    
-            self.camera.capture(self.stream, format='jpeg', resize = self.display_resolution)
+            #self.camera.capture(self.stream, format='jpeg')
+            self.stream.truncate()
             self.stream.seek(0)
-
+        
             img = cv2.imdecode(np.fromstring(self.stream.getvalue(), dtype=np.uint8),1)
-
-            self.__clean_iteration()
+            #self.__clean_iteration()
             yield img
             
     def take_picture(self) :

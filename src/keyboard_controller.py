@@ -25,3 +25,6 @@ class KeyboardController(InputController):
             action = InputController.ACTION_EXIT
 
         return action
+        
+    def release(self):
+        pass

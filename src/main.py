@@ -79,8 +79,8 @@ def main(argv):
     if source == PLATFORM_RPICAM:
         import picapture as cp
         video_stream = cp.PiCapture(dimension)
-	import keyboard_controller as ki
-	input_controller = ki.KeyboardController(store)
+        import rpi_controller as ki
+        input_controller = ki.RpiController(store)
     elif source == PLATFORM_WEBCAM:
         import webcamcapture as wp
         video_stream = wp.WebcamCapture(dimension)
